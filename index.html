@@ -11,6 +11,19 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Include Font Awesome for Icons -->
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <!-- Custom Tailwind Config for Lighter Red -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        lightRed: '#FEE2E2',
+                        darkRed: '#B91C1C',
+                    }
+                }
+            }
+        }
+    </script>
 </head>
 <body class="bg-gray-100">
     <div id="app" class="min-h-screen flex flex-col items-center justify-center p-4">
@@ -427,7 +440,7 @@
                         if (isOptionCorrect) {
                             return 'bg-green-500 text-white';
                         } else {
-                            return 'bg-red-500 text-white';
+                            return 'bg-lightRed text-darkRed';
                         }
                     }
                 }
