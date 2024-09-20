@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vocabulary Practice</title>
+    <!-- Include Vue.js 3 via CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Include Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include Font Awesome for Icons -->
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="min-h-screen flex flex-col items-center justify-center">
+        <div class="bg-white p-8 rounded shadow-md w-full max-w-lg">
+            <h1 class="text-3xl font-bold mb-6 text-center">Vocabulary Practice</h1>
+            <div class="flex justify-end mb-4">
+                <button @click="toggleDirection" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-200">
+                    Switch to {{ languageDirection === 'EnglishToGerman' ? 'German to English' : 'English to German' }}
+                </button>
+            </div>
+            <p class="text-lg mb-2">Translate the following word:</p>
+            <div class="bg-gray-200 p-4 rounded mb-4">
+                <h2 class="text-xl font-semibold">{{ question }}</h2>
+            </div>
+            <input v-model="userInput" @keyup.enter="checkAnswer"
+                   placeholder="Type your answer here"
+                   :class="['w-full p-3 border rounded focus:outline-none', inputBorderColor]"
+                   @focus="clearFeedback"/>
+            <div class="flex justify-between items-center mt-4">
+                <button @click="checkAnswer" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition duration-200">
+                    Check Answer
+                </button>
+                <button @click="nextWord" v-if="feedback" class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition duration-200">
+                    Next Word
+                </button>
+            </div>
+            <div class="mt-6 h-16">
+                <transition name="fade">
+                    <div v-if="feedback" :class="feedbackClass" class="p-4 rounded flex items-center">
+                        <i :class="feedbackIcon" class="text-2xl mr-3"></i>
+                        <p class="text-lg font-medium">{{ feedback }}</p>
+                    </div>
+                </transition>
+            </div>
+            <div class="mt-6">
+                <p class="text-gray-700">Score: <span class="font-semibold">{{ score.correct }}</span> correct out of <span class="font-semibold">{{ score.total }}</span> attempts.</p>
+            </div>
+        </div>
+
+        <!-- Summary Section -->
+        <div v-if="showSummary" class="bg-white p-8 rounded shadow-md w-full max-w-lg mt-8">
+            <h2 class="text-2xl font-bold mb-4">Summary</h2>
+            <div v-if="summary.correct.length > 0">
+                <h3 class="text-xl font-semibold text-green-600 mb-2">Correctly Answered Words:</h3>
+                <ul class="list-disc list-inside mb-4">
+                    <li v-for="word in summary.correct" :key="word.id">
+                        {{ displayWord(word) }} - {{ displayTranslation(word) }}
+                    </li>
+                </ul>
+            </div>
+            <div v-if="summary.incorrect.length > 0">
+                <h3 class="text-xl font-semibold text-red-600 mb-2">Incorrectly Answered Words:</h3>
+                <ul class="list-disc list-inside mb-4">
+                    <li v-for="word in summary.incorrect" :key="word.id">
+                        {{ displayWord(word) }} - {{ displayTranslation(word) }}
+                    </li>
+                </ul>
+                <button @click="retryIncorrect" class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition duration-200">
+                    Retry Incorrect Words
+                </button>
+            </div>
+            <div v-if="summary.correct.length > 0 && summary.incorrect.length === 0">
+                <p class="text-green-600 text-lg font-medium">Congratulations! You've answered all words correctly at least once.</p>
+                <button @click="resetGame" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-200">
+                    Restart Practice
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Tailwind CSS Animations -->
+    <style>
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.5s;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+    </style>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    vocabList: [
+                        { id: 1, english: 'to re-play sth', german: 'etw (erneut) abspielen', correct: false },
+                        { id: 2, english: 'trial', german: 'Test, Probe, Ausprobieren', correct: false },
+                        { id: 3, english: 'recording', german: 'Aufzeichnung, Aufnahme', correct: false },
+                        { id: 4, english: 'Never mind.', german: 'Egal.', correct: false },
+                        { id: 5, english: 'to supply', german: 'liefern, zur Verfügung stellen', correct: false },
+                        { id: 6, english: 'expert', german: 'Fachmann/-frau', correct: false },
+                        { id: 7, english: 'operator', german: 'Telefonist/in', correct: false },
+                        { id: 8, english: 'to feature', german: '(Merkmal) haben, aufweisen', correct: false },
+                        { id: 9, english: 'to enable sb to do sth', german: 'jdn in die Lage versetzen, etw zu tun', correct: false },
+                        { id: 10, english: 'participant', german: 'Teilnehmer/in', correct: false },
+                        { id: 11, english: 'to collate', german: '(Dokumente) zusammentragen, abgleichen', correct: false },
+                        { id: 12, english: 'time-consuming', german: 'zeitraubend', correct: false },
+                        { id: 13, english: 'horrible', german: 'grässlich, scheußlich', correct: false },
+                        { id: 14, english: 'to elaborate', german: 'etw genauer ausführen', correct: false },
+                        { id: 15, english: 'to recreate sth', german: 'etw wiederherstellen', correct: false },
+                        { id: 16, english: 'obvious', german: 'klar, offensichtlich', correct: false },
+                        { id: 17, english: 'easily accessible', german: 'leicht zugänglich', correct: false },
+                        { id: 18, english: 'collation', german: 'Abgleich, Zusammenstellung', correct: false },
+                        { id: 19, english: 'high usage', german: 'intensive Nutzung', correct: false },
+                        { id: 20, english: 'two-step verification', german: 'Verifizierung in zwei Schritten', correct: false },
+                        { id: 21, english: 'reversion', german: 'Rückkehr', correct: false },
+                        { id: 22, english: 'unique selling proposition (USP)', german: 'Alleinstellungsmerkmal', correct: false },
+                        { id: 23, english: 'shareable', german: 'gemeinsam nutzbar', correct: false },
+                        { id: 24, english: 'generous', german: 'großzügig', correct: false },
+                        { id: 25, english: 'to deny sb sth', german: 'jdm etw verweigern', correct: false },
+                        { id: 26, english: 'usage rate', german: 'Nutzungsquote, Auslastung', correct: false },
+                        { id: 27, english: 'contract', german: 'Vertrag', correct: false },
+                        { id: 28, english: 'to negotiate', german: 'verhandeln', correct: false },
+                        { id: 29, english: 'legally binding', german: 'rechtsverbindlich', correct: false },
+                        { id: 30, english: 'to reach an agreement', german: 'sich einigen', correct: false },
+                        { id: 31, english: 'proposal', german: 'Vorschlag', correct: false },
+                        { id: 32, english: 'to sign', german: 'unterschreiben, unterzeichnen', correct: false },
+                        { id: 33, english: 'terms and conditions', german: 'Allgemeine Geschäftsbedingungen', correct: false },
+                        { id: 34, english: 'with a view to doing sth', german: 'mit dem Ziel, etw zu tun', correct: false },
+                        { id: 35, english: 'rather than', german: 'anstatt', correct: false },
+                        { id: 36, english: 'storage capacity', german: 'Speicherkapazität', correct: false },
+                        { id: 37, english: 'assuming', german: 'angenommen', correct: false },
+                        { id: 38, english: 'briefing', german: 'Einweisung', correct: false },
+                        { id: 39, english: 'Please note that...', german: 'Wir weisen Sie darauf hin, dass...', correct: false },
+                        { id: 40, english: 'to constitute sth', german: 'etw darstellen, etw sein', correct: false },
+                        { id: 41, english: 'obligation', german: 'Verpflichtung', correct: false },
+                        { id: 42, english: 'Kind regards', german: '(Brief) Mit freundlichen Grüßen', correct: false },
+                        { id: 43, english: 'procurement', german: 'Beschaffung', correct: false },
+                        { id: 44, english: 'to get down to business', german: 'zur Sache kommen', correct: false },
+                        { id: 45, english: 'to quote', german: '(Preis) nennen, anbieten', correct: false },
+                        { id: 46, english: 'discount', german: 'Rabatt', correct: false },
+                        { id: 47, english: 'growth', german: 'Wachstum', correct: false },
+                        { id: 48, english: 'annual licence', german: 'Jahreslizenz', correct: false },
+                        { id: 49, english: 'subscription', german: 'Abonnement', correct: false },
+                        { id: 50, english: 'to accommodate changes', german: 'Änderungen entgegenkommen', correct: false },
+                        { id: 51, english: 'to refuse', german: 'ablehnen', correct: false },
+                        { id: 52, english: 'inclusion', german: 'Einschluss', correct: false },
+                        { id: 53, english: 'to raise a question', german: 'eine Frage vorbringen', correct: false },
+                        { id: 54, english: 'body', german: '(Brief) Haupttext', correct: false },
+                        { id: 55, english: 'inside address', german: '(Brief) Anschrift', correct: false },
+                        { id: 56, english: 'to enclose', german: 'beilegen', correct: false },
+                        { id: 57, english: 'reference initials', german: 'Bezugszeichen', correct: false },
+                        { id: 58, english: 'trial order', german: 'Probe Bestellung', correct: false },
+                        { id: 59, english: 'high-definition', german: 'hochauflösend', correct: false },
+                        { id: 60, english: 'housing', german: 'Gehäuse', correct: false },
+                        { id: 61, english: 'sealed', german: 'dicht, abgedichtet', correct: false },
+                        { id: 62, english: 'dustproof', german: 'staubdicht', correct: false },
+                        { id: 63, english: 'terms of payment', german: 'Zahlungsbedingungen', correct: false },
+                        { id: 64, english: 'packaging', german: 'Verpackung', correct: false },
+                        { id: 65, english: 'terms of delivery', german: 'Lieferbedingungen', correct: false }
+                    ],
+                    currentWord: {},
+                    userInput: '',
+                    feedback: '',
+                    isCorrect: false,
+                    score: {
+                        correct: 0,
+                        total: 0
+                    },
+                    languageDirection: 'EnglishToGerman', // or 'GermanToEnglish'
+                    summary: {
+                        correct: [],
+                        incorrect: []
+                    },
+                    inputBorderColor: 'border-gray-300',
+                    isRetryingIncorrect: false,
+                    showSummary: true
+                }
+            },
+            methods: {
+                shuffleVocab() {
+                    this.vocabList = this.vocabList.sort(() => Math.random() - 0.5);
+                },
+                nextWord() {
+                    this.userInput = '';
+                    this.feedback = '';
+                    this.isCorrect = false;
+                    this.inputBorderColor = 'border-gray-300';
+
+                    if (this.vocabList.length > 0) {
+                        this.currentWord = this.vocabList.pop();
+                    } else if (this.summary.incorrect.length > 0 && !this.isRetryingIncorrect) {
+                        // No more words, but there are incorrect ones to retry
+                        alert('No more words. You can retry the incorrect ones.');
+                    } else if (this.isRetryingIncorrect) {
+                        // Finished retrying incorrect words
+                        this.isRetryingIncorrect = false;
+                        this.showSummary = true;
+                        alert('Finished retrying incorrect words.');
+                    } else {
+                        // All words have been answered correctly at least once
+                        alert('You have answered all words correctly at least once!');
+                    }
+                },
+                checkAnswer() {
+                    if (this.feedback) return; // Prevent checking the same word multiple times
+                    this.score.total++;
+                    let correctAnswers = [];
+                    let userAnswer = this.userInput.trim().toLowerCase();
+
+                    if (this.languageDirection === 'EnglishToGerman') {
+                        correctAnswers = this.currentWord.german.split(',').map(ans => ans.trim().toLowerCase());
+                    } else {
+                        correctAnswers = this.currentWord.english.split(',').map(ans => ans.trim().toLowerCase());
+                    }
+
+                    // Normalize strings for comparison
+                    const formatString = (str) => str.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").toLowerCase().trim();
+
+                    let isAnswerCorrect = correctAnswers.some(answer => formatString(userAnswer) === formatString(answer));
+
+                    if (isAnswerCorrect) {
+                        this.feedback = 'Correct!';
+                        this.isCorrect = true;
+                        this.inputBorderColor = 'border-green-500';
+                        this.score.correct++;
+
+                        // Mark word as correct if not already marked
+                        if (!this.currentWord.correct) {
+                            this.currentWord.correct = true;
+                            this.summary.correct.push(this.currentWord);
+                        }
+                    } else {
+                        this.feedback = 'Incorrect. The correct answers are: ' + correctAnswers.join(', ');
+                        this.isCorrect = false;
+                        this.inputBorderColor = 'border-red-500';
+
+                        // Only add to incorrect summary if not already there
+                        if (!this.summary.incorrect.find(word => word.id === this.currentWord.id)) {
+                            this.summary.incorrect.push(this.currentWord);
+                        }
+                    }
+                },
+                toggleDirection() {
+                    this.languageDirection = this.languageDirection === 'EnglishToGerman' ? 'GermanToEnglish' : 'EnglishToGerman';
+                    this.resetGame();
+                },
+                resetGame() {
+                    // Reset the game
+                    this.vocabList = [...this.vocabList, ...this.summary.correct, ...this.summary.incorrect];
+                    this.vocabList.forEach(word => word.correct = false);
+                    this.summary.correct = [];
+                    this.summary.incorrect = [];
+                    this.score.correct = 0;
+                    this.score.total = 0;
+                    this.isRetryingIncorrect = false;
+                    this.showSummary = true;
+                    this.shuffleVocab();
+                    this.nextWord();
+                },
+                retryIncorrect() {
+                    // Set the vocabList to the incorrect words
+                    this.vocabList = [...this.summary.incorrect];
+                    this.summary.incorrect = [];
+                    this.isRetryingIncorrect = true;
+                    this.showSummary = false; // Hide summary when retrying
+                    this.shuffleVocab();
+                    this.nextWord();
+                },
+                clearFeedback() {
+                    if (this.feedback) {
+                        this.feedback = '';
+                        this.isCorrect = false;
+                        this.inputBorderColor = 'border-gray-300';
+                    }
+                },
+                displayWord(word) {
+                    return this.languageDirection === 'EnglishToGerman' ? word.english : word.german;
+                },
+                displayTranslation(word) {
+                    return this.languageDirection === 'EnglishToGerman' ? word.german : word.english;
+                }
+            },
+            computed: {
+                question() {
+                    return this.languageDirection === 'EnglishToGerman' ? this.currentWord.english : this.currentWord.german;
+                },
+                feedbackClass() {
+                    return this.isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                },
+                feedbackIcon() {
+                    return this.isCorrect ? 'fas fa-check-circle' : 'fas fa-times-circle';
+                },
+            },
+            mounted() {
+                // Assign unique IDs and set correct: false for each word
+                this.vocabList = this.vocabList.map((word, index) => {
+                    return { ...word, id: index + 1, correct: false };
+                });
+                this.shuffleVocab();
+                this.nextWord();
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
